@@ -1,8 +1,9 @@
 use serde_json::Value;
 use std::fs;
 use colored::*;
-use chrono::{NaiveDate, Datelike};
+use chrono::{NaiveDate, Datelike, Local};
 use std::collections::HashMap;
+use std::io::{self, Write};
 
 // GitHub's contribution colors (from light to dark)
 const COLORS: [(u8, u8, u8); 5] = [
@@ -99,6 +100,25 @@ fn main() {
         }
         
         // Print legend
-        println!("")
+        println!("");
+        
+        // Check for today's entry
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        let has_today_entry = entries.iter().any(|entry| {
+            entry["dateCreated"].as_str() == Some(&today)
+        });
+
+        if has_today_entry {
+            println!("You have an entry for today's journal");
+        } else {
+            print!("Press enter to create a journal entry");
+            io::stdout().flush().unwrap();
+            
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            
+            // Here you can add the logic to create a new journal entry
+            println!("\nCreating new journal entry...");
+        }
     }
 }
