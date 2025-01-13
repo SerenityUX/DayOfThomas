@@ -22,7 +22,7 @@ A terminal-based journaling application that records audio entries, transcribes 
 
 1. Clone the repository:
    ```bash
-   git clone [your-repo-url]
+   git clone https://github.com/SerenityUX/DayOfThomas/tree/main
    cd day_of_thomas
    ```
 
