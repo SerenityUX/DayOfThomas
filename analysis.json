@@ -1,62 +1,68 @@
 [
-    {
-        "dateCreated": "2025-01-01",
-        "colorAssociatedWithDay": "#FF0000",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-02",
-        "colorAssociatedWithDay": "#FF7F00",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-03",
-        "colorAssociatedWithDay": "#FFFF00",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-04",
-        "colorAssociatedWithDay": "#00FF00",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-05",
-        "colorAssociatedWithDay": "#0000FF",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-06",
-        "colorAssociatedWithDay": "#4B0082",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-07",
-        "colorAssociatedWithDay": "#8F00FF",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-08",
-        "colorAssociatedWithDay": "#FF0000",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-09",
-        "colorAssociatedWithDay": "#FF7F00",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    },
-    {
-        "dateCreated": "2025-01-10",
-        "colorAssociatedWithDay": "#FFFF00",
-        "transcript": "This is a sample transcript of an audio recording",
-        "audioPath": "/audio/sample-recording.wav"
-    }
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#FF0000",
+    "dateCreated": "2025-01-01",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#FF7F00",
+    "dateCreated": "2025-01-02",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#FFFF00",
+    "dateCreated": "2025-01-03",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#00FF00",
+    "dateCreated": "2025-01-04",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#0000FF",
+    "dateCreated": "2025-01-05",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#4B0082",
+    "dateCreated": "2025-01-06",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#8F00FF",
+    "dateCreated": "2025-01-07",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#FF0000",
+    "dateCreated": "2025-01-08",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#FF7F00",
+    "dateCreated": "2025-01-09",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "/audio/sample-recording.wav",
+    "colorAssociatedWithDay": "#FFFF00",
+    "dateCreated": "2025-01-10",
+    "transcript": "This is a sample transcript of an audio recording"
+  },
+  {
+    "audioPath": "audio/2025-01-12.wav",
+    "colorAssociatedWithDay": "#C9D8B6",
+    "dateCreated": "2025-01-12",
+    "transcript": "Hey, this is an example. Um, yeah, I just, yeah, it's been a pretty okay day.\n"
+  }
 ]

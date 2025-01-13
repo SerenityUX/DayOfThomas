@@ -1,9 +1,49 @@
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::fs;
 use colored::*;
 use chrono::{NaiveDate, Datelike, Local};
 use std::collections::HashMap;
 use std::io::{self, Write};
+use cpal::traits::{HostTrait, DeviceTrait, StreamTrait};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::time::Duration;
+use std::thread;
+use reqwest::multipart;
+use dotenv::dotenv;
+use std::env;
+
+fn get_openai_key() -> String {
+    dotenv().ok();
+    env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set in .env file")
+}
+
+async fn transcribe_audio(audio_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let file_bytes = tokio::fs::read(audio_path).await?;
+    let file_part = reqwest::multipart::Part::bytes(file_bytes)
+        .file_name(audio_path.to_string())
+        .mime_str("audio/wav")?;
+
+    let form = reqwest::multipart::Form::new()
+        .part("file", file_part)
+        .text("model", "whisper-1")
+        .text("language", "en")
+        .text("response_format", "text");
+
+    let response = client.post("https://api.openai.com/v1/audio/transcriptions")
+        .header("Authorization", format!("Bearer {}", get_openai_key()))
+        .multipart(form)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await?;
+        return Err(format!("API request failed: {}", error_text).into());
+    }
+
+    let transcript = response.text().await?;
+    Ok(transcript)
+}
 
 // GitHub's contribution colors (from light to dark)
 const COLORS: [(u8, u8, u8); 5] = [
@@ -22,7 +62,166 @@ fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
     (r, g, b)
 }
 
-fn main() {
+fn record_audio(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Create audio directory if it doesn't exist
+    fs::create_dir_all("audio")?;
+    
+    let host = cpal::default_host();
+    let device = host.default_input_device()
+        .expect("No input device available");
+
+    let mut config = device.default_input_config()?.config();
+    config.channels = 1;
+
+    println!("\nRecording... Press Enter to stop.");
+
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: config.sample_rate.0,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+
+    let recording = Arc::new(AtomicBool::new(true));
+    let recording_clone = recording.clone();
+
+    let sample_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let sample_count_clone = sample_count.clone();
+
+    let writer = Arc::new(std::sync::Mutex::new(Some(
+        hound::WavWriter::create(format!("audio/{}.wav", filename), spec)?
+    )));
+
+    let writer_clone = writer.clone();
+
+    let err_fn = move |err| {
+        eprintln!("An error occurred on stream: {}", err);
+    };
+
+    let stream = device.build_input_stream(
+        &config,
+        move |data: &[f32], _: &_| {
+            if let Some(writer) = &mut *writer_clone.lock().unwrap() {
+                for &sample in data {
+                    // Convert f32 to i16
+                    let sample = (sample * i16::MAX as f32) as i16;
+                    writer.write_sample(sample).unwrap();
+                    sample_count_clone.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        },
+        err_fn,
+        None
+    )?;
+
+    stream.play()?;
+
+    // Wait for Enter key in a separate thread
+    thread::spawn(move || {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        recording_clone.store(false, Ordering::SeqCst);
+    });
+
+    // Print time while recording
+    while recording.load(Ordering::SeqCst) {
+        let current_samples = sample_count.load(Ordering::SeqCst);
+        print!("\rRecording: {:.1} seconds", 
+               current_samples as f32 / config.sample_rate.0 as f32);
+        io::stdout().flush()?;
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    drop(stream);
+    
+    // Take ownership of the writer and finalize it
+    if let Some(writer) = writer.lock().unwrap().take() {
+        writer.finalize()?;
+    }
+    
+    println!("\nRecording saved.");
+    Ok(())
+}
+
+async fn get_color_from_gpt(transcript: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    
+    let response = client.post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", get_openai_key()))
+        .json(&json!({
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a color expert. Based on the emotional content and mood of the text provided, return only a hex color code that best represents it. Return only the hex code, nothing else."
+                },
+                {
+                    "role": "user",
+                    "content": transcript
+                }
+            ],
+            "max_tokens": 10
+        }))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await?;
+        return Err(format!("GPT API request failed: {}", error_text).into());
+    }
+
+    let response_json: Value = response.json().await?;
+    let color = response_json["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("#9BE9A8")
+        .trim()
+        .to_string();
+
+    Ok(color)
+}
+
+async fn create_journal_entry(date: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Record audio - if this fails, we can't proceed
+    record_audio(date)?;
+    
+    // Try to get transcript, use empty string if it fails
+    let transcript = match transcribe_audio(&format!("audio/{}.wav", date)).await {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("Warning: Transcription failed: {}", e);
+            String::new()
+        }
+    };
+    
+    // Try to get color, use white if it fails
+    let color = match get_color_from_gpt(&transcript).await {
+        Ok(color) => color,
+        Err(e) => {
+            eprintln!("Warning: Color analysis failed: {}", e);
+            "#FFFFFF".to_string()  // White as fallback
+        }
+    };
+    
+    // Read existing JSON
+    let mut data: Value = serde_json::from_str(&fs::read_to_string("analysis.json")?)?;
+    
+    if let Value::Array(entries) = &mut data {
+        entries.push(json!({
+            "dateCreated": date,
+            "colorAssociatedWithDay": color,
+            "transcript": transcript,
+            "audioPath": format!("audio/{}.wav", date)
+        }));
+    }
+    
+    fs::write("analysis.json", serde_json::to_string_pretty(&data)?)?;
+    println!("Journal entry created successfully!");
+    
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() {
     // Read the JSON file
     let data = fs::read_to_string("analysis.json")
         .expect("Unable to read file");
@@ -117,8 +316,10 @@ fn main() {
             let mut input = String::new();
             io::stdin().read_line(&mut input).unwrap();
             
-            // Here you can add the logic to create a new journal entry
             println!("\nCreating new journal entry...");
+            if let Err(e) = create_journal_entry(&today).await {
+                eprintln!("Error creating journal entry: {}", e);
+            }
         }
     }
 }
