@@ -58,11 +58,5 @@
     "colorAssociatedWithDay": "#FFFF00",
     "dateCreated": "2025-01-10",
     "transcript": "This is a sample transcript of an audio recording"
-  },
-  {
-    "audioPath": "audio/2025-01-12.wav",
-    "colorAssociatedWithDay": "#C9D8B6",
-    "dateCreated": "2025-01-12",
-    "transcript": "Hey, this is an example. Um, yeah, I just, yeah, it's been a pretty okay day.\n"
   }
 ]

@@ -11,6 +11,7 @@ use std::thread;
 use reqwest::multipart;
 use dotenv::dotenv;
 use std::env;
+use std::path::PathBuf;
 
 fn get_openai_key() -> String {
     dotenv().ok();
@@ -64,7 +65,9 @@ fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
 
 fn record_audio(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Create audio directory if it doesn't exist
-    fs::create_dir_all("audio")?;
+    let mut audio_dir = get_exe_dir();
+    audio_dir.push("audio");
+    fs::create_dir_all(&audio_dir)?;
     
     let host = cpal::default_host();
     let device = host.default_input_device()
@@ -89,7 +92,7 @@ fn record_audio(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let sample_count_clone = sample_count.clone();
 
     let writer = Arc::new(std::sync::Mutex::new(Some(
-        hound::WavWriter::create(format!("audio/{}.wav", filename), spec)?
+        hound::WavWriter::create(filename, spec)?
     )));
 
     let writer_clone = writer.clone();
@@ -180,55 +183,95 @@ async fn get_color_from_gpt(transcript: &str) -> Result<String, Box<dyn std::err
     Ok(color)
 }
 
+fn get_exe_dir() -> PathBuf {
+    env::current_exe()
+        .expect("Failed to get executable path")
+        .parent()
+        .expect("Failed to get executable directory")
+        .to_path_buf()
+}
+
+fn get_audio_path(date: &str) -> PathBuf {
+    let mut path = get_exe_dir();
+    path.push("audio");
+    path.push(format!("{}.wav", date));
+    path
+}
+
+fn get_analysis_path() -> PathBuf {
+    let mut path = get_exe_dir();
+    path.push("analysis.json");
+    path
+}
+
 async fn create_journal_entry(date: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // Record audio - if this fails, we can't proceed
-    record_audio(date)?;
-    
-    // Try to get transcript, use empty string if it fails
-    let transcript = match transcribe_audio(&format!("audio/{}.wav", date)).await {
+    // Record audio
+    let audio_path = get_audio_path(date);
+    record_audio(audio_path.to_str().unwrap())?;
+
+    // Get transcript
+    let transcript = match transcribe_audio(audio_path.to_str().unwrap()).await {
         Ok(text) => text,
         Err(e) => {
             eprintln!("Warning: Transcription failed: {}", e);
             String::new()
         }
     };
-    
-    // Try to get color, use white if it fails
+
+    // Get color from GPT
     let color = match get_color_from_gpt(&transcript).await {
         Ok(color) => color,
         Err(e) => {
             eprintln!("Warning: Color analysis failed: {}", e);
-            "#FFFFFF".to_string()  // White as fallback
+            "#FFFFFF".to_string()
         }
     };
-    
-    // Read existing JSON
-    let mut data: Value = serde_json::from_str(&fs::read_to_string("analysis.json")?)?;
-    
-    if let Value::Array(entries) = &mut data {
-        entries.push(json!({
-            "dateCreated": date,
-            "colorAssociatedWithDay": color,
-            "transcript": transcript,
-            "audioPath": format!("audio/{}.wav", date)
-        }));
-    }
-    
-    fs::write("analysis.json", serde_json::to_string_pretty(&data)?)?;
-    println!("Journal entry created successfully!");
-    
+
+    // Read existing entries
+    let analysis_path = get_analysis_path();
+    let file_content = std::fs::read_to_string(&analysis_path)?;
+    let mut entries: Vec<serde_json::Value> = serde_json::from_str(&file_content)?;
+
+    // Create new entry
+    let entry = serde_json::json!({
+        "date": date,
+        "colorAssociatedWithDay": color,
+        "transcript": transcript,
+        "audioPath": format!("audio/{}.wav", date)
+    });
+
+    // Add new entry
+    entries.push(entry);
+
+    // Write back to file
+    std::fs::write(
+        analysis_path,
+        serde_json::to_string_pretty(&entries)?
+    )?;
+
     Ok(())
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Get the analysis file path
+    let analysis_path = get_analysis_path();
+    
+    // Create parent directories if they don't exist
+    if let Some(parent) = analysis_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    
+    // Create analysis.json with empty array if it doesn't exist
+    if !analysis_path.exists() {
+        fs::write(&analysis_path, "[]")?;
+    }
+    
     // Read the JSON file
-    let data = fs::read_to_string("analysis.json")
-        .expect("Unable to read file");
+    let data = fs::read_to_string(&analysis_path)?;
     
     // Parse the JSON string
-    let json: Value = serde_json::from_str(&data)
-        .expect("Unable to parse JSON");
+    let json: Value = serde_json::from_str(&data)?;
     
     if let Value::Array(entries) = json {
         let entry_count = entries.len();
@@ -237,7 +280,7 @@ async fn main() {
         let mut date_colors = HashMap::new();
         for entry in &entries {
             if let (Some(date), color) = (
-                entry["dateCreated"].as_str(),
+                entry["date"].as_str(),
                 entry["colorAssociatedWithDay"].as_str()
             ) {
                 date_colors.insert(date.to_string(), color.map(|s| s.to_string()));
@@ -304,17 +347,17 @@ async fn main() {
         // Check for today's entry
         let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
         let has_today_entry = entries.iter().any(|entry| {
-            entry["dateCreated"].as_str() == Some(&today)
+            entry["date"].as_str() == Some(&today)
         });
 
         if has_today_entry {
             println!("You have an entry for today's journal");
         } else {
             print!("Press enter to create a journal entry");
-            io::stdout().flush().unwrap();
+            io::stdout().flush()?;
             
             let mut input = String::new();
-            io::stdin().read_line(&mut input).unwrap();
+            io::stdin().read_line(&mut input)?;
             
             println!("\nCreating new journal entry...");
             if let Err(e) = create_journal_entry(&today).await {
@@ -322,4 +365,6 @@ async fn main() {
             }
         }
     }
+    
+    Ok(())
 }
